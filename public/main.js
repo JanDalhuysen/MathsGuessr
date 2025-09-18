@@ -120,17 +120,56 @@ function drawCartesianPlane(canvas, ctx) {
     const { width, height } = canvas.getBoundingClientRect();
     canvas.width = width;
     canvas.height = height;
-    const originX = width / 2, originY = height / 2, scale = 40;
-    ctx.strokeStyle = '#4b5263', ctx.fillStyle = '#abb2bf', ctx.lineWidth = 1, ctx.font = '12px sans-serif';
-    for (let x = -originX; x < originX; x += scale) { ctx.beginPath(); ctx.moveTo(originX + x, 0); ctx.lineTo(originX + x, height); ctx.stroke(); }
-    for (let y = -originY; y < originY; y += scale) { ctx.beginPath(); ctx.moveTo(0, originY + y); ctx.lineTo(width, originY + y); ctx.stroke(); }
-    ctx.strokeStyle = '#61afef', ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, originY); ctx.lineTo(width, originY); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(originX, 0); ctx.lineTo(originX, height); ctx.stroke();
-    ctx.textAlign = 'center', ctx.textBaseline = 'top';
-    for (let i = -Math.floor(originX / scale); i <= Math.floor(originX / scale); i++) { if (i === 0) continue; ctx.fillText(i, originX + i * scale, originY + 5); }
-    ctx.textAlign = 'right', ctx.textBaseline = 'middle';
-    for (let i = -Math.floor(originY / scale); i <= Math.floor(originY / scale); i++) { if (i === 0) continue; ctx.fillText(-i, originX - 5, originY + i * scale); }
+
+    const originX = Math.floor(width / 2) + 0.5;
+    const originY = Math.floor(height / 2) + 0.5;
+    const scale = 40;
+
+    ctx.strokeStyle = '#4b5263';
+    ctx.fillStyle = '#abb2bf';
+    ctx.lineWidth = 1;
+    ctx.font = '12px sans-serif';
+
+    // Draw grid lines
+    for (let x = originX % scale; x < width; x += scale) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+    }
+    for (let y = originY % scale; y < height; y += scale) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+    }
+
+    // Draw axes
+    ctx.strokeStyle = '#61afef';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, originY);
+    ctx.lineTo(width, originY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(originX, 0);
+    ctx.lineTo(originX, height);
+    ctx.stroke();
+
+    // Draw numbers
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let i = -Math.floor(originX / scale); i <= Math.floor((width - originX) / scale); i++) {
+        if (i === 0) continue;
+        ctx.fillText(i, originX + i * scale, originY + 5);
+    }
+
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = -Math.floor(originY / scale); i <= Math.floor((height - originY) / scale); i++) {
+        if (i === 0) continue;
+        ctx.fillText(-i, originX - 5, originY + i * scale);
+    }
 }
 
 function drawNumberLine(canvas, ctx) {
