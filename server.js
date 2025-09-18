@@ -134,6 +134,20 @@ io.on('connection', (socket) => {
         }
     });
     
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+    console.log('A user connected');
+    
+    // Handle user joining a game
+    socket.on('joinGame', (gameId) => {
+        socket.join(gameId);
+        console.log(`User joined game: ${gameId}`);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
+    
     // Handle user's guess submission
     socket.on('submitGuess', (data) => {
         const { gameId, userId, answer } = data;
