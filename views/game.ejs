@@ -1,91 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Math Guesser - <%= type %></title>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/main.js"></script>
-    <style>
-        #game-container {
-            width: 100%;
-            height: 100vh;
-            position: relative;
-        }
-        
-        .guess-point {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background-color: red;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-        }
-    </style>
+    <title>MathsGuessr - <%= type %></title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <h1>Math Guesser - <%= type %></h1>
-    
-    <div id="game-container">
-        <div id="question-display"></div>
-        
-        <% if (type === 'number-line') { %>
-            <!-- Number line game type: Just a horizontal line for clicking -->
-            <div class="number-line-container" style="position: relative; width: 100%; height: 50px;"></div>
-        <% } else if (type === 'cartesian-plane') { %>
-            <!-- Cartesian plane game type: Form for entering coordinates -->
-            <div class="cartesian-input">
-                <form id="answer-form" style="position: absolute; bottom: 20px; left: 20px; z-index: 10;">
-                    <input type="number" id="x-input" placeholder="X coordinate" required>
-                    <input type="number" id="y-input" placeholder="Y coordinate" required>
-                    <button type="submit">Submit Answer</button>
-                </form>
+    <div class="page-container">
+        <div id="leaderboard-container">
+            <h2>Leaderboard</h2>
+            <ul id="leaderboard"></ul>
+        </div>
+        <div class="game-wrapper">
+            <h1>MathsGuessr - <%= type %></h1>
+            <div id="game-container">
+                <div id="question-display"></div>
+                <% if (type === 'number-line') { %>
+                    <div class="number-line-container">
+                        <canvas id="number-line-canvas"></canvas>
+                    </div>
+                <% } else if (type === 'cartesian-plane') { %>
+                    <div class="cartesian-plane-container">
+                        <canvas id="cartesian-plane-canvas"></canvas>
+                    </div>
+                <% } %>
             </div>
-            <div class="cartesian-plane-container" style="position: relative; width: 100%; height: 90%;"></div>
-        <% } %>
-        
-        <div id="score-display"></div>
+        </div>
     </div>
-    
-    <script>
-        const socket = io();
-        const gameContainer = document.getElementById('game-container');
-        
-        // Handle user interaction with the game container
-        gameContainer.addEventListener('click', (e) => {
-            const gameId = '<%= type %>';
-            const userId = 'player1'; // In a real app, this would be a proper user system
-            
-            // Get click position
-            const rect = gameContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            
-            // Send guess to server
-            socket.emit('submitGuess', { 
-                gameId: gameId,
-                userId: userId,
-                answer: { x, y } // For number line, we'd just use x value
-            });
-        });
-        
-        // Handle incoming guesses
-        socket.on('guessReceived', (data) => {
-            // Create a visual marker for the guess
-            const point = document.createElement('div');
-            point.className = 'guess-point';
-            point.style.left = `${data.answer.x}px`;
-            point.style.top = `${data.answer.y}px`;
-            point.style.backgroundColor = data.userId === 'player1' ? 'blue' : 'red';
-            gameContainer.appendChild(point);
-    
-            // Display score feedback
-            const scoreDisplay = document.getElementById('score-display');
-            scoreDisplay.textContent = `User ${data.userId} scored ${data.score} points`;
-    
-            // Clear the score after a short delay
-            setTimeout(() => {
-                scoreDisplay.textContent = '';
-            }, 3000);
-        });
-    </script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/main.js"></script>
 </body>
 </html>

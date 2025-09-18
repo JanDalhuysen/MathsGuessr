@@ -4,176 +4,152 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
 
-// Middleware to parse JSON bodies
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Set EJS as the view engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Simple in-memory game state storage
-let games = {};
-let currentAnswers = {}; // Store current answers for each game
+const rooms = {};
+const ROOM_DELETION_TIMEOUT = 5000; // 5 seconds
 
-// Function to generate a unique game ID
-function generateGameId() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
+function getSanitizedRooms() {
+    const roomInfo = {};
+    for (const id in rooms) {
+        if (!rooms[id].isPendingDeletion) {
+            roomInfo[id] = { 
+                gameType: rooms[id].gameType, 
+                playerCount: Object.keys(rooms[id].players).length 
+            };
+        }
+    }
+    return roomInfo;
 }
 
-// Routes
-app.get('/', (req, res) => {
-    res.render('index');
-});
-
-app.get('/game/:type', (req, res) => {
-    res.render('game', { type: req.params.type });
-});
-
-// API endpoint to get math questions
-app.get('/api/question/:type', (req, res) => {
-    const type = req.params.type;
-    const gameId = req.query.gameId || 'default';
-    
-    let question = '';
-    let correctAnswer = null;
-    
-    // Generate a random math question based on type
-    if (type === 'number-line') {
-        // Generate a random number line question
-        const a = Math.floor(Math.random() * 20) - 10;
-        const b = Math.floor(Math.random() * 20) - 10;
-        const operation = ['+', '-', '×', '÷'][Math.floor(Math.random() * 4)];
-        
-        question = `Where is ${a} ${operation} ${b} on the number line?`;
-        
-        // Calculate correct answer
-        switch (operation) {
-            case '+': correctAnswer = a + b; break;
-            case '-': correctAnswer = a - b; break;
-            case '×': correctAnswer = a * b; break;
-            case '÷': correctAnswer = a / b; break;
-        }
-        
-        // Store the correct answer for this game
-        currentAnswers[gameId] = {
-            type,
-            answer: correctAnswer,
-            timestamp: Date.now()
-        };
-        
-        res.json({ question, correctAnswer, type: 'number-line', gameId });
-    } else if (type === 'cartesian-plane') {
-        // Generate a random Cartesian plane question
-        const x = Math.floor(Math.random() * 20) - 10;
-        const y = Math.floor(Math.random() * 20) - 10;
-        
-        question = `Where is the point (${x}, ${y}) on the Cartesian plane?`;
-        
-        // For Cartesian plane, we'll represent the answer as {x, y}
-        currentAnswers[gameId] = {
-            type,
-            answer: { x, y },
-            timestamp: Date.now()
-        };
-        
-        res.json({ question, correctAnswer: {x, y}, type: 'cartesian-plane', gameId });
+app.get('/', (req, res) => res.render('index'));
+app.get('/lobby', (req, res) => res.render('lobby'));
+app.get('/game', (req, res) => {
+    const roomId = req.query.room;
+    if (rooms[roomId]) {
+        res.render('game', { type: rooms[roomId].gameType, room: roomId });
     } else {
-        res.status(400).json({ error: 'Invalid game type' });
+        res.redirect('/lobby');
     }
 });
 
-// Socket.IO connection handler
+function generateQuestion(type) {
+    if (type === 'number-line') {
+        const a = Math.floor(Math.random() * 11) - 5;
+        const b = Math.floor(Math.random() * 11) - 5;
+        return { text: `What is ${a} + ${b}?`, answer: a + b };
+    } else if (type === 'cartesian-plane') {
+        const x = Math.floor(Math.random() * 11) - 5;
+        const y = Math.floor(Math.random() * 11) - 5;
+        return { text: `Find the point (${x}, ${y})`, answer: { x, y } };
+    }
+}
+
+function startGameLoop(roomId) {
+    const room = rooms[roomId];
+    if (!room || room.interval) return;
+
+    const broadcastNewQuestion = () => {
+        const newQuestion = generateQuestion(room.gameType);
+        room.question = newQuestion;
+        io.to(roomId).emit('newQuestion', { text: newQuestion.text });
+    };
+
+    broadcastNewQuestion();
+    room.interval = setInterval(broadcastNewQuestion, 10000);
+}
+
+function calculateDistance(p1, p2) {
+    return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+}
+
+function calculateScore(distance) {
+    return Math.max(0, Math.round(100 - distance * 10));
+}
+
 io.on('connection', (socket) => {
-    console.log('A user connected');
-    
-    // Handle user joining a game
-    socket.on('joinGame', (gameId) => {
-        socket.join(gameId);
-        console.log(`User joined game: ${gameId}`);
+    socket.on('getRooms', () => {
+        socket.emit('updateRooms', getSanitizedRooms());
     });
-    
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
+
+    socket.on('createRoom', ({ gameType, playerName }) => {
+        const roomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+        rooms[roomId] = {
+            gameType,
+            players: {},
+            question: {},
+            interval: null,
+            deletionTimeout: null,
+            isPendingDeletion: false
+        };
+        socket.join(roomId);
+        rooms[roomId].players[socket.id] = { name: playerName, score: 0 };
+        socket.emit('joinSuccess', roomId);
+        startGameLoop(roomId);
+        io.emit('updateRooms', getSanitizedRooms());
     });
-    
-    // Handle user's guess submission
-    socket.on('submitGuess', (data) => {
-        const { gameId, userId, answer } = data;
-    
-        // Broadcast the guess to other players
-        socket.to(gameId).emit('guessReceived', { userId, answer });
-    
-        // Get the correct answer for this game
-        const gameData = currentAnswers[gameId];
-        
-        if (gameData) {
-            const correctAnswer = gameData.answer;
-            let distance = 0;
-        
-            // Calculate distance based on game type
-            if (gameData.type === 'number-line') {
-                distance = Math.abs(correctAnswer - answer);
-            } else if (gameData.type === 'cartesian-plane') {
-                distance = calculateDistance(correctAnswer, answer);
+
+    socket.on('joinRoom', ({ roomId, playerName }) => {
+        const room = rooms[roomId];
+        if (room) {
+            if (room.deletionTimeout) {
+                clearTimeout(room.deletionTimeout);
+                room.deletionTimeout = null;
+                room.isPendingDeletion = false;
             }
-        
-            const score = calculateScore(distance);
-        
-            // Emit score to the user
-            socket.emit('showScore', { score, correctAnswer, type: gameData.type });
-        
-            // Store the user's score
-            recordScore(gameId, userId, score);
-        
-            // Broadcast the updated score to all players
-            io.to(gameId).emit('updateScores', getGameScores(gameId));
+            socket.join(roomId);
+            room.players[socket.id] = { name: playerName, score: 0 };
+            if (!room.interval) {
+                startGameLoop(roomId);
+            }
+            socket.emit('joinSuccess', roomId);
+            socket.emit('newQuestion', { text: room.question.text });
+            io.to(roomId).emit('updateLeaderboard', room.players);
+            io.emit('updateRooms', getSanitizedRooms());
+        } else {
+            socket.emit('joinError', 'Room not found.');
         }
     });
-});
 
-// Function to record a user's score
-function recordScore(gameId, userId, score) {
-    // In a real application, you would store this in a database
-    // For simplicity, we're using an in-memory object
-    
-    // Initialize game if it doesn't exist
-    if (!games[gameId]) {
-        games[gameId] = {};
-    }
-    
-    // Initialize user scores array if it doesn't exist
-    if (!games[gameId][userId]) {
-        games[gameId][userId] = [];
-    }
-    
-    games[gameId][userId].push(score);
-}
+    socket.on('submitGuess', ({ roomId, guess }) => {
+        const room = rooms[roomId];
+        const player = room?.players[socket.id];
+        if (!room || !player) return;
 
-// Function to get scores for a specific game
-function calculateScore(distance) {
-    // Implement scoring logic: higher score for smaller distance
-    // This is a placeholder, adjust as needed
-    return Math.max(0, 100 - distance * 10); // Example: 100 points for 0 distance, decreases by 10 per unit of distance
-}
+        let distance = 0;
+        if (room.gameType === 'number-line') {
+            distance = Math.abs(room.question.answer - guess.x);
+        } else {
+            distance = calculateDistance(room.question.answer, guess);
+        }
+        const score = calculateScore(distance);
+        player.score += score;
 
-// Function to get scores for a specific game {
-function getGameScores(gameId) {
-    // Return scores for this game
-    if (!games[gameId]) {
-        return {};
-    }
-    
-    return games[gameId];
-}
+        socket.emit('guessResult', { score, correctAnswer: room.question.answer });
+        io.to(roomId).emit('updateLeaderboard', room.players);
+    });
 
-// API endpoint to get game scores
-app.get('/api/scores/:gameId', (req, res) => {
-    const gameId = req.params.gameId;
-    res.json({ scores: getGameScores(gameId) });
+    socket.on('disconnect', () => {
+        for (const roomId in rooms) {
+            const room = rooms[roomId];
+            if (room.players[socket.id]) {
+                delete room.players[socket.id];
+                if (Object.keys(room.players).length === 0) {
+                    room.isPendingDeletion = true;
+                    room.deletionTimeout = setTimeout(() => {
+                        clearInterval(room.interval);
+                        delete rooms[roomId];
+                        io.emit('updateRooms', getSanitizedRooms());
+                    }, ROOM_DELETION_TIMEOUT);
+                }
+                io.to(roomId).emit('updateLeaderboard', room.players);
+                io.emit('updateRooms', getSanitizedRooms());
+                break;
+            }
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;

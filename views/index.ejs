@@ -1,18 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Math Guesser</title>
-    <link rel="stylesheet" href="/styles.css">
+    <title>MathsGuessr - Welcome</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <h1>Welcome to Math Guesser!</h1>
-    <p>Choose a game type:</p>
-    <ul>
-        <li><a href="/game/number-line">Number Line</a></li>
-        <li><a href="/game/cartesian-plane">Cartesian Plane</a></li>
-    </ul>
-    
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/main.js"></script>
+    <div class="welcome-container">
+        <h1>MathsGuessr</h1>
+        <form id="name-form">
+            <input type="text" id="player-name" placeholder="Enter your name" required maxlength="15">
+            <button type="submit">Enter Lobby</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('name-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const playerName = document.getElementById('player-name').value;
+            // Store name and redirect to lobby
+            localStorage.setItem('playerName', playerName);
+            window.location.href = '/lobby';
+        });
+    </script>
 </body>
 </html>

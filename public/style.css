@@ -1,0 +1,163 @@
+body {
+    background-color: #282c34;
+    color: #abb2bf;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    height: 100vh;
+    justify-content: center;
+}
+
+h1 {
+    color: #61afef;
+    text-align: center;
+}
+
+button, select {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+    border: 1px solid #21252b;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 1em;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #4b5263;
+}
+
+/* Welcome Page (Name Form) */
+.welcome-container {
+    text-align: center;
+}
+
+#name-form input {
+    background-color: #21252b;
+    border: 1px solid #3a3f4b;
+    color: #abb2bf;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 1em;
+    margin-right: 10px;
+}
+
+/* Lobby Page */
+.lobby-container {
+    width: 90%;
+    max-width: 600px;
+}
+
+.lobby-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#room-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.room-item {
+    background-color: #21252b;
+    padding: 15px;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Game Page */
+.page-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+}
+
+#leaderboard-container {
+    width: 250px;
+    height: 80vh;
+    background-color: #21252b;
+    border-radius: 8px;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+#leaderboard-container h2 {
+    color: #e5c07b;
+    text-align: center;
+    margin-top: 0;
+}
+
+#leaderboard {
+    list-style: none;
+    padding: 0;
+}
+
+#leaderboard li {
+    padding: 8px 0;
+    border-bottom: 1px solid #3a3f4b;
+}
+
+.game-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#game-container {
+    width: 800px;
+    height: 600px;
+    position: relative;
+    background-color: #21252b;
+    border-radius: 8px;
+    border: 1px solid #3a3f4b;
+    overflow: hidden; /* Hide score animation overflow */
+}
+
+#question-display {
+    padding: 15px;
+    font-size: 1.5em;
+    color: #e5c07b;
+    text-align: center;
+}
+
+.number-line-container, .cartesian-plane-container {
+    width: 100%;
+    height: calc(100% - 60px);
+    position: absolute;
+    bottom: 0;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.score-popup {
+    position: absolute;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #98c379;
+    pointer-events: none;
+    animation: score-fade-out 1.5s forwards;
+}
+
+@keyframes score-fade-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+}

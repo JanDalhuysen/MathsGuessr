@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MathsGuessr - Lobby</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="lobby-container">
+        <h1>Game Lobby</h1>
+        <div class="lobby-controls">
+            <select id="game-type-select">
+                <option value="number-line">Number Line</option>
+                <option value="cartesian-plane">Cartesian Plane</option>
+            </select>
+            <button id="create-room-btn">Create Room</button>
+        </div>
+        <h2>Available Rooms</h2>
+        <div id="room-list"></div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/lobby.js"></script>
+</body>
+</html>
