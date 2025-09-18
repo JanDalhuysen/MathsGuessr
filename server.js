@@ -3,6 +3,7 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
+const path = require('path');
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -86,54 +87,6 @@ app.get('/api/question/:type', (req, res) => {
     }
 });
 
-// Socket.IO connection handler
-io.on('connection', (socket) => {
-    console.log('A user connected');
-    
-    // Handle user joining a game
-    socket.on('joinGame', (gameId) => {
-        socket.join(gameId);
-        console.log(`User joined game: ${gameId}`);
-    });
-    
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
-    });
-    
-    // Handle user's guess submission
-    socket.on('submitGuess', (data) => {
-        const { gameId, userId, answer } = data;
-    
-        // Broadcast the guess to other players
-        socket.to(gameId).emit('guessReceived', { userId, answer });
-    
-        // Get the correct answer for this game
-        const gameData = currentAnswers[gameId];
-        
-        if (gameData) {
-            const correctAnswer = gameData.answer;
-            let distance = 0;
-        
-            // Calculate distance based on game type
-            if (gameData.type === 'number-line') {
-                distance = Math.abs(correctAnswer - answer);
-            } else if (gameData.type === 'cartesian-plane') {
-                distance = calculateDistance(correctAnswer, answer);
-            }
-        
-            const score = calculateScore(distance);
-        
-            // Emit score to the user
-            socket.emit('showScore', { score, correctAnswer, type: gameData.type });
-        
-            // Store the user's score
-            recordScore(gameId, userId, score);
-        
-            // Broadcast the updated score to all players
-            io.to(gameId).emit('updateScores', getGameScores(gameId));
-        }
-    });
-    
 // Socket.IO connection handler
 io.on('connection', (socket) => {
     console.log('A user connected');
