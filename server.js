@@ -161,14 +161,8 @@ io.on('connection', (socket) => {
             socket.emit('showScore', { score, correctAnswer, type: gameData.type });
         
             // Store the user's score
-            recordScore(userId, score);
-
-            // Broadcast the updated score to all players
-            io.to(gameId).emit('updateScores', getGameScores(gameId));
-
-            // Broadcast the updated score to all players
-            io.to(gameId).emit('updateScores', getGameScores(gameId));
-
+            recordScore(gameId, userId, score);
+        
             // Broadcast the updated score to all players
             io.to(gameId).emit('updateScores', getGameScores(gameId));
         }

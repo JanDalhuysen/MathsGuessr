@@ -1,12 +1,81 @@
 // Client-side game logic
 document.addEventListener('DOMContentLoaded', () => {
-    // Fetch and display a math question based on game type
-    fetch('/api/question/number-line')
+    // Initialize game when page loads
+    initializeGame();
+});
+
+// Function to initialize game
+function initializeGame() {
+    // Get game type from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const gameType = urlParams.get('type') || 'number-line';
+    
+    // Set up game container
+    const gameContainer = document.getElementById('game-container');
+    gameContainer.dataset.gameType = gameType;
+    
+    // Fetch and display a math question
+    fetchQuestion(gameType);
+    
+    // Set up event listeners based on game type
+    setupInputHandlers(gameType);
+}
+
+// Function to fetch a question from the server
+function fetchQuestion(gameType) {
+    fetch(`/api/question/${gameType}`)
         .then(response => response.json())
         .then(data => {
             document.getElementById('question-display').textContent = data.question;
+            
+            // Set current game ID
+            if (data.gameId) {
+                window.currentGameId = data.gameId;
+            }
+            
+            // Set current correct answer
+            if (data.correctAnswer) {
+                setCurrentCorrectAnswer(gameType, data.correctAnswer);
+            }
         });
-});
+}
+
+// Function to set up input handlers based on game type
+function setupInputHandlers(gameType) {
+    const gameContainer = document.getElementById('game-container');
+    
+    if (gameType === 'number-line') {
+        // For number line, handle clicks along the line
+        gameContainer.addEventListener('click', (event) => {
+            const rect = gameContainer.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            
+            // Convert x-coordinate to number line value (assuming the line is horizontal)
+            const width = rect.right - rect.left;
+            const numberLineValue = (x / width) * 20 - 10; // Maps to -10 to 10 range
+            
+            // Create coordinates object that submitGuess can use
+            const coordinates = {
+                x: event.clientX,
+                y: event.clientY
+            };
+            
+            // Submit the guess
+            submitGuess(coordinates);
+        });
+    } else if (gameType === 'cartesian-plane') {
+        // For Cartesian plane, handle clicks on the plane
+        gameContainer.addEventListener('click', (event) => {
+            const coordinates = {
+                x: event.clientX,
+                y: event.clientY
+            };
+            
+            // Submit the guess
+            submitGuess(coordinates);
+        });
+    }
+}
 
 // Function to calculate distance between two points
 function calculateDistance(point1, point2) {
@@ -54,6 +123,9 @@ function submitGuess(coordinates) {
     guessMarker.style.left = `${coordinates.x}px`;
     guessMarker.style.top = `${coordinates.y}px`;
     document.getElementById('game-container').appendChild(guessMarker);
+    
+    // Return false to prevent default form submission if used in a form
+    return false;
 }
 
 // Function to normalize click coordinates based on game type
