@@ -17,6 +17,18 @@ function calculateDistance(point1, point2) {
     return 0;
 }
 
+// Function to get current correct answer based on game type
+function getCurrentCorrectAnswer(gameType) {
+    // For simplicity, we'll use a global variable to store the current answer
+    // In a real game, this would be retrieved from the server
+    return window.currentCorrectAnswer;
+}
+
+// Function to set current correct answer
+function setCurrentCorrectAnswer(gameType, answer) {
+    window.currentCorrectAnswer = answer;
+}
+
 // Function to calculate score based on distance
 function calculateScore(distance) {
     // Simple scoring system - closer = higher score
