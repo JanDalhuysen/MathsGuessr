@@ -59,7 +59,7 @@ function startGameLoop(roomId) {
     };
 
     broadcastNewQuestion();
-    room.interval = setInterval(broadcastNewQuestion, 10000);
+    room.interval = setInterval(broadcastNewQuestion, 5000);
 }
 
 function calculateDistance(p1, p2) {
