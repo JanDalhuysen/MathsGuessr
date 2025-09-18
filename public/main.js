@@ -64,16 +64,28 @@ function setupInputHandlers(gameType) {
             submitGuess(coordinates);
         });
     } else if (gameType === 'cartesian-plane') {
-        // For Cartesian plane, handle clicks on the plane
-        gameContainer.addEventListener('click', (event) => {
-            const coordinates = {
-                x: event.clientX,
-                y: event.clientY
-            };
-            
-            // Submit the guess
-            submitGuess(coordinates);
-        });
+        // For Cartesian plane, handle form submission
+        const form = document.getElementById('answer-form');
+        if (form) {
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                
+                // Get coordinates from form
+                const coordinates = {
+                    x: parseInt(document.getElementById('x-input').value),
+                    y: parseInt(document.getElementById('y-input').value)
+                };
+                
+                // Submit the guess
+                submitGuess(coordinates);
+                
+                // Clear the inputs
+                document.getElementById('x-input').value = '';
+                document.getElementById('y-input').value = '';
+                
+                return false;
+            });
+        }
     }
 }
 
@@ -120,8 +132,20 @@ function submitGuess(coordinates) {
     // Show the user's guess on the game container
     const guessMarker = document.createElement('div');
     guessMarker.className = 'guess-marker';
-    guessMarker.style.left = `${coordinates.x}px`;
-    guessMarker.style.top = `${coordinates.y}px`;
+    
+    if (gameType === 'number-line') {
+        // For number line, show the guess on the number line container
+        guessMarker.style.left = `${coordinates.x}px`;
+        guessMarker.style.top = '50%';
+    } else if (gameType === 'cartesian-plane') {
+        // For Cartesian plane, show the guess on the plane
+        guessMarker.style.left = `${coordinates.x}px`;
+        guessMarker.style.top = `${coordinates.y}px`;
+    }
+    
+    guessMarker.style.transform = 'translate(-50%, -50%)';
+    guessMarker.style.position = 'absolute';
+    
     document.getElementById('game-container').appendChild(guessMarker);
     
     // Return false to prevent default form submission if used in a form
