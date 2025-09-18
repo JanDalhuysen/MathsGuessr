@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Math Guesser - <%= type %></title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/main.js"></script>
+    <style>
+        #game-container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .guess-point {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <h1>Math Guesser - <%= type %></h1>
+    
+    <div id="game-container">
+        <!-- Game visualization would go here -->
+        <div id="question-display"></div>
+        <div id="score-display"></div>
+    </div>
+    
+    <script>
+        const socket = io();
+        const gameContainer = document.getElementById('game-container');
+        
+        // Handle user interaction with the game container
+        gameContainer.addEventListener('click', (e) => {
+            const gameId = '<%= type %>';
+            const userId = 'player1'; // In a real app, this would be a proper user system
+            
+            // Get click position
+            const rect = gameContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Send guess to server
+            socket.emit('submitGuess', { 
+                gameId: gameId,
+                userId: userId,
+                answer: { x, y } // For number line, we'd just use x value
+            });
+        });
+        
+        // Handle incoming guesses
+        socket.on('guessReceived', (data) => {
+            // Create a visual marker for the guess
+            const point = document.createElement('div');
+            point.className = 'guess-point';
+            point.style.left = `${data.answer.x}px`;
+            point.style.top = `${data.answer.y}px`;
+            point.style.backgroundColor = data.userId === 'player1' ? 'blue' : 'red';
+            gameContainer.appendChild(point);
+    
+            // Display score feedback
+            const scoreDisplay = document.getElementById('score-display');
+            scoreDisplay.textContent = `User ${data.userId} scored ${data.score} points`;
+    
+            // Clear the score after a short delay
+            setTimeout(() => {
+                scoreDisplay.textContent = '';
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
