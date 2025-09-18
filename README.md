@@ -19,6 +19,11 @@ The application is built with:
 - Real-time scoring system
 - Game state management
 - Responsive design
+- Multiplayer competition mode
+- Progress tracking and achievement system
+- Adaptive difficulty levels
+- Teacher dashboard for monitoring student progress
+- Mobile touch support for tablets and smartphones
 
 ## Getting Started
 
