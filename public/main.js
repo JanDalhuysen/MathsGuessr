@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const leaderboard = document.getElementById('leaderboard');
     const canvas = document.getElementById(gameType === 'number-line' ? 'number-line-canvas' : 'cartesian-plane-canvas');
     const ctx = canvas.getContext('2d');
+    let hasGuessed = false;
 
     const drawFunctions = {
         'number-line': drawNumberLine,
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.on('newQuestion', ({ text }) => {
         questionDisplay.textContent = text;
+        hasGuessed = false;
         redrawCanvas();
     });
 
@@ -55,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UI Event Handlers ---
     canvas.addEventListener('click', (e) => {
+        if (hasGuessed) return;
+
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -69,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
             guess = { x: (x - originX) / scale, y: -(y - originY) / scale };
         }
         socket.emit('submitGuess', { roomId, guess });
+        hasGuessed = true;
     });
 
     window.addEventListener('resize', redrawCanvas);

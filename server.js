@@ -54,6 +54,7 @@ function startGameLoop(roomId) {
     const broadcastNewQuestion = () => {
         const newQuestion = generateQuestion(room.gameType);
         room.question = newQuestion;
+        room.submittedAnswers = [];
         io.to(roomId).emit('newQuestion', { text: newQuestion.text });
     };
 
@@ -80,6 +81,7 @@ io.on('connection', (socket) => {
             gameType,
             players: {},
             question: {},
+            submittedAnswers: [],
             interval: null,
             deletionTimeout: null,
             isPendingDeletion: false
@@ -116,7 +118,9 @@ io.on('connection', (socket) => {
     socket.on('submitGuess', ({ roomId, guess }) => {
         const room = rooms[roomId];
         const player = room?.players[socket.id];
-        if (!room || !player) return;
+        if (!room || !player || room.submittedAnswers.includes(socket.id)) return;
+
+        room.submittedAnswers.push(socket.id);
 
         let distance = 0;
         if (room.gameType === 'number-line') {
