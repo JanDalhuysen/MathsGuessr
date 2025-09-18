@@ -141,8 +141,8 @@ function createNumberLine() {
         tick.style.left = `${(i + 10) * 100 / 20}%`;
         tick.style.top = '50%';
         tick.style.transform = 'translateY(-50%)';
-        tick.style.width: '1px';
-        tick.style.height: '10px';
+        tick.style.width = '1px';
+        tick.style.height = '10px';
         tick.style.backgroundColor = '#333';
         
         // Create label

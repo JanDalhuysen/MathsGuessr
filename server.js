@@ -3,7 +3,6 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
-const path = require('path');
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -155,6 +154,13 @@ function recordScore(gameId, userId, score) {
 }
 
 // Function to get scores for a specific game
+function calculateScore(distance) {
+    // Implement scoring logic: higher score for smaller distance
+    // This is a placeholder, adjust as needed
+    return Math.max(0, 100 - distance * 10); // Example: 100 points for 0 distance, decreases by 10 per unit of distance
+}
+
+// Function to get scores for a specific game {
 function getGameScores(gameId) {
     // Return scores for this game
     if (!games[gameId]) {
