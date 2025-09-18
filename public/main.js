@@ -81,4 +81,3 @@ function normalizeCoordinates(gameType, coordinates) {
     
     return null;
 }
-}
