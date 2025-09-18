@@ -17,6 +17,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Simple in-memory game state storage
 let games = {};
+let currentAnswers = {}; // Store current answers for each game
+
+// Function to generate a unique game ID
+function generateGameId() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 // Routes
 app.get('/', (req, res) => {
@@ -30,6 +36,7 @@ app.get('/game/:type', (req, res) => {
 // API endpoint to get math questions
 app.get('/api/question/:type', (req, res) => {
     const type = req.params.type;
+    const gameId = req.query.gameId || 'default';
     
     let question = '';
     let correctAnswer = null;
@@ -51,9 +58,14 @@ app.get('/api/question/:type', (req, res) => {
             case '÷': correctAnswer = a / b; break;
         }
         
-        // For number line, we'll represent the answer as a single number
-        setCurrentCorrectAnswer(type, correctAnswer);
-        res.json({ question, correctAnswer, type: 'number-line' });
+        // Store the correct answer for this game
+        currentAnswers[gameId] = {
+            type,
+            answer: correctAnswer,
+            timestamp: Date.now()
+        };
+        
+        res.json({ question, correctAnswer, type: 'number-line', gameId });
     } else if (type === 'cartesian-plane') {
         // Generate a random Cartesian plane question
         const x = Math.floor(Math.random() * 20) - 10;
@@ -62,8 +74,13 @@ app.get('/api/question/:type', (req, res) => {
         question = `Where is the point (${x}, ${y}) on the Cartesian plane?`;
         
         // For Cartesian plane, we'll represent the answer as {x, y}
-        setCurrentCorrectAnswer(type, {x, y});
-        res.json({ question, correctAnswer: {x, y}, type: 'cartesian-plane' });
+        currentAnswers[gameId] = {
+            type,
+            answer: { x, y },
+            timestamp: Date.now()
+        };
+        
+        res.json({ question, correctAnswer: {x, y}, type: 'cartesian-plane', gameId });
     } else {
         res.status(400).json({ error: 'Invalid game type' });
     }
@@ -73,9 +90,18 @@ app.get('/api/question/:type', (req, res) => {
 io.on('connection', (socket) => {
     console.log('A user connected');
     
+    // Handle user joining a game
+    socket.on('joinGame', (gameId) => {
+        socket.join(gameId);
+        console.log(`User joined game: ${gameId}`);
+    });
+    
     socket.on('disconnect', () => {
         console.log('User disconnected');
     });
+    
+    // Handle user's guess submission
+    socket.on('submitGuess', (data) => {
     
     // Handle user's guess submission
     socket.on('submitGuess', (data) => {
@@ -85,28 +111,59 @@ io.on('connection', (socket) => {
         socket.to(gameId).emit('guessReceived', { userId, answer });
     
         // Get the correct answer for this game
-        const correctAnswer = getCurrentCorrectAnswer(gameId);
-    
-        // Calculate score
-        if (correctAnswer) {
+        const gameData = currentAnswers[gameId];
+        
+        if (gameData) {
+            const correctAnswer = gameData.answer;
             let distance = 0;
         
             // Calculate distance based on game type
-            if (gameId === 'number-line') {
+            if (gameData.type === 'number-line') {
                 distance = Math.abs(correctAnswer - answer);
-            } else if (gameId === 'cartesian-plane') {
+            } else if (gameData.type === 'cartesian-plane') {
                 distance = calculateDistance(correctAnswer, answer);
             }
         
             const score = calculateScore(distance);
         
             // Emit score to the user
-            socket.emit('showScore', { score, correctAnswer });
+            socket.emit('showScore', { score, correctAnswer, type: gameData.type });
         
             // Store the user's score
             recordScore(userId, score);
+
+            // Broadcast the updated score to all players
+            io.to(gameId).emit('updateScores', getGameScores(gameId));
+
+            // Broadcast the updated score to all players
+            io.to(gameId).emit('updateScores', getGameScores(gameId));
+
+            // Broadcast the updated score to all players
+            io.to(gameId).emit('updateScores', getGameScores(gameId));
         }
     });
+});
+
+// Function to record a user's score
+function recordScore(userId, score) {
+    // In a real application, you would store this in a database
+    // For simplicity, we're using an in-memory object
+    if (!games[userId]) {
+        games[userId] = [];
+    }
+    games[userId].push(score);
+}
+
+// Function to get scores for a specific game
+function getGameScores(gameId) {
+    // Return scores for this game
+    return games[gameId] || [];
+}
+
+// API endpoint to get game scores
+app.get('/api/scores/:gameId', (req, res) => {
+    const gameId = req.params.gameId;
+    res.json({ scores: getGameScores(gameId) });
 });
 
 const PORT = process.env.PORT || 3000;
