@@ -3,6 +3,45 @@ const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const path = require('path');
+const fs = require('fs');
+const { performance } = require('perf_hooks');
+
+// Initialize logging
+const LOG_FILE = 'game_metrics.json';
+const metrics = {
+    games: [],
+    players: {}
+};
+
+// Load existing metrics if file exists
+if (fs.existsSync(LOG_FILE)) {
+    try {
+        const data = fs.readFileSync(LOG_FILE, 'utf8');
+        const loadedMetrics = JSON.parse(data);
+        Object.assign(metrics, loadedMetrics);
+    } catch (error) {
+        console.error('Error loading metrics file:', error);
+    }
+}
+
+// Save metrics to file
+function saveMetrics() {
+    try {
+        fs.writeFileSync(LOG_FILE, JSON.stringify(metrics, null, 2));
+    } catch (error) {
+        console.error('Error saving metrics:', error);
+    }
+}
+
+// Ensure we save metrics on exit
+process.on('SIGINT', () => {
+    saveMetrics();
+    process.exit();
+});
+process.on('SIGTERM', () => {
+    saveMetrics();
+    process.exit();
+});
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -51,10 +90,32 @@ function startGameLoop(roomId) {
     const room = rooms[roomId];
     if (!room || room.interval) return;
 
+    // Initialize game metrics
+    if (!metrics.games[roomId]) {
+        metrics.games[roomId] = {
+            id: roomId,
+            gameType: room.gameType,
+            startTime: new Date().toISOString(),
+            questions: [],
+            players: Object.keys(room.players)
+        };
+    }
+
     const broadcastNewQuestion = () => {
         const newQuestion = generateQuestion(room.gameType);
         room.question = newQuestion;
         room.submittedAnswers = [];
+        room.currentQuestionStartTime = performance.now();
+        
+        // Log new question
+        const questionLog = {
+            question: newQuestion.text,
+            answer: newQuestion.answer,
+            timestamp: new Date().toISOString(),
+            playerResponses: []
+        };
+        metrics.games[roomId].questions.push(questionLog);
+        
         io.to(roomId).emit('newQuestion', { text: newQuestion.text });
     };
 
@@ -120,6 +181,9 @@ io.on('connection', (socket) => {
         const player = room?.players[socket.id];
         if (!room || !player || room.submittedAnswers.includes(socket.id)) return;
 
+        // Calculate response time
+        const responseTime = performance.now() - room.currentQuestionStartTime;
+        
         room.submittedAnswers.push(socket.id);
 
         let distance = 0;
@@ -131,6 +195,43 @@ io.on('connection', (socket) => {
         const score = calculateScore(distance);
         player.score += score;
 
+        // Update player metrics
+        if (!metrics.players[socket.id]) {
+            metrics.players[socket.id] = {
+                playerId: socket.id,
+                totalScore: 0,
+                questionsAnswered: 0,
+                totalResponseTime: 0,
+                bestScore: 0
+            };
+        }
+        
+        const playerMetrics = metrics.players[socket.id];
+        playerMetrics.totalScore += score;
+        playerMetrics.questionsAnswered += 1;
+        playerMetrics.totalResponseTime += responseTime;
+        playerMetrics.bestScore = Math.max(playerMetrics.bestScore, score);
+        
+        // Find the current question in metrics
+        const gameMetrics = metrics.games[roomId];
+        const currentQuestion = gameMetrics.questions[gameMetrics.questions.length - 1];
+        
+        // Add response data
+        currentQuestion.playerResponses.push({
+            playerId: socket.id,
+            playerName: player.name,
+            guess: guess,
+            distance: distance,
+            score: score,
+            responseTime: responseTime,
+            timestamp: new Date().toISOString()
+        });
+
+        // Save metrics periodically
+        if (Object.keys(playerMetrics).length % 5 === 0) {
+            saveMetrics();
+        }
+
         socket.emit('guessResult', { score, correctAnswer: room.question.answer });
         io.to(roomId).emit('updateLeaderboard', room.players);
     });
@@ -139,8 +240,18 @@ io.on('connection', (socket) => {
         for (const roomId in rooms) {
             const room = rooms[roomId];
             if (room.players[socket.id]) {
+                // Save final metrics before disconnect
+                saveMetrics();
+                
                 delete room.players[socket.id];
                 if (Object.keys(room.players).length === 0) {
+                    // Mark game as ended
+                    if (metrics.games[roomId]) {
+                        metrics.games[roomId].endTime = new Date().toISOString();
+                        // Save one final time
+                        saveMetrics();
+                    }
+                    
                     room.isPendingDeletion = true;
                     room.deletionTimeout = setTimeout(() => {
                         clearInterval(room.interval);
