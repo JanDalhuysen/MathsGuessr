@@ -36,6 +36,26 @@ function calculateScore(distance) {
     return Math.max(0, Math.floor(1000 * Math.exp(-0.001 * distance)));
 }
 
+// Function to handle user's guess submission
+function submitGuess(coordinates) {
+    const gameType = document.getElementById('game-container').dataset.gameType;
+    const answer = normalizeCoordinates(gameType, coordinates);
+    
+    // Send the guess to the server
+    socket.emit('submitGuess', {
+        gameId: window.currentGameId,
+        userId: window.currentUserId,
+        answer: answer
+    });
+    
+    // Show the user's guess on the game container
+    const guessMarker = document.createElement('div');
+    guessMarker.className = 'guess-marker';
+    guessMarker.style.left = `${coordinates.x}px`;
+    guessMarker.style.top = `${coordinates.y}px`;
+    document.getElementById('game-container').appendChild(guessMarker);
+}
+
 // Function to normalize click coordinates based on game type
 function normalizeCoordinates(gameType, coordinates) {
     const gameContainer = document.getElementById('game-container');

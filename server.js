@@ -102,6 +102,37 @@ io.on('connection', (socket) => {
     
     // Handle user's guess submission
     socket.on('submitGuess', (data) => {
+        const { gameId, userId, answer } = data;
+    
+        // Broadcast the guess to other players
+        socket.to(gameId).emit('guessReceived', { userId, answer });
+    
+        // Get the correct answer for this game
+        const gameData = currentAnswers[gameId];
+        
+        if (gameData) {
+            const correctAnswer = gameData.answer;
+            let distance = 0;
+        
+            // Calculate distance based on game type
+            if (gameData.type === 'number-line') {
+                distance = Math.abs(correctAnswer - answer);
+            } else if (gameData.type === 'cartesian-plane') {
+                distance = calculateDistance(correctAnswer, answer);
+            }
+        
+            const score = calculateScore(distance);
+        
+            // Emit score to the user
+            socket.emit('showScore', { score, correctAnswer, type: gameData.type });
+        
+            // Store the user's score
+            recordScore(gameId, userId, score);
+        
+            // Broadcast the updated score to all players
+            io.to(gameId).emit('updateScores', getGameScores(gameId));
+        }
+    });
     
     // Handle user's guess submission
     socket.on('submitGuess', (data) => {
@@ -145,19 +176,31 @@ io.on('connection', (socket) => {
 });
 
 // Function to record a user's score
-function recordScore(userId, score) {
+function recordScore(gameId, userId, score) {
     // In a real application, you would store this in a database
     // For simplicity, we're using an in-memory object
-    if (!games[userId]) {
-        games[userId] = [];
+    
+    // Initialize game if it doesn't exist
+    if (!games[gameId]) {
+        games[gameId] = {};
     }
-    games[userId].push(score);
+    
+    // Initialize user scores array if it doesn't exist
+    if (!games[gameId][userId]) {
+        games[gameId][userId] = [];
+    }
+    
+    games[gameId][userId].push(score);
 }
 
 // Function to get scores for a specific game
 function getGameScores(gameId) {
     // Return scores for this game
-    return games[gameId] || [];
+    if (!games[gameId]) {
+        return {};
+    }
+    
+    return games[gameId];
 }
 
 // API endpoint to get game scores
