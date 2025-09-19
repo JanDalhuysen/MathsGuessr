@@ -5,6 +5,8 @@ const io = require('socket.io')(http);
 const path = require('path');
 const fs = require('fs');
 const { performance } = require('perf_hooks');
+const axios = require('axios');
+const he = require('he');
 
 // Initialize logging
 const LOG_FILE = 'game_metrics.json';
@@ -74,7 +76,7 @@ app.get('/game', (req, res) => {
     }
 });
 
-function generateQuestion(type) {
+async function generateQuestion(type) {
     if (type === 'number-line') {
         const a = Math.floor(Math.random() * 11) - 5;
         const b = Math.floor(Math.random() * 11) - 5;
@@ -83,6 +85,28 @@ function generateQuestion(type) {
         const x = Math.floor(Math.random() * 11) - 5;
         const y = Math.floor(Math.random() * 11) - 5;
         return { text: `Find the point (${x}, ${y})`, answer: { x, y } };
+    } else if (type === 'trivia') {
+        try {
+            const response = await axios.get('https://opentdb.com/api.php?amount=1&category=18&type=multiple');
+            const data = response.data.results[0];
+            const correctAnswer = he.decode(data.correct_answer);
+            const incorrectAnswers = data.incorrect_answers.map(answer => he.decode(answer));
+            const allAnswers = [...incorrectAnswers, correctAnswer];
+            // Fisher-Yates shuffle
+            for (let i = allAnswers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allAnswers[i], allAnswers[j]] = [allAnswers[j], allAnswers[i]];
+            }
+            const correctIndex = allAnswers.indexOf(correctAnswer);
+            return {
+                text: he.decode(data.question),
+                answers: allAnswers,
+                correctIndex: correctIndex
+            };
+        } catch (error) {
+            console.error('Error fetching trivia question:', error);
+            return { text: 'Error fetching question', answers: [], correctIndex: -1 };
+        }
     }
 }
 
@@ -101,8 +125,8 @@ function startGameLoop(roomId) {
         };
     }
 
-    const broadcastNewQuestion = () => {
-        const newQuestion = generateQuestion(room.gameType);
+    const broadcastNewQuestion = async () => {
+        const newQuestion = await generateQuestion(room.gameType);
         room.question = newQuestion;
         room.submittedAnswers = [];
         room.currentQuestionStartTime = performance.now();
@@ -116,11 +140,11 @@ function startGameLoop(roomId) {
         };
         metrics.games[roomId].questions.push(questionLog);
         
-        io.to(roomId).emit('newQuestion', { text: newQuestion.text });
+        io.to(roomId).emit('newQuestion', newQuestion);
     };
 
     broadcastNewQuestion();
-    room.interval = setInterval(broadcastNewQuestion, 5000);
+    room.interval = setInterval(broadcastNewQuestion, 10000); // Increased for trivia
 }
 
 function calculateDistance(p1, p2) {
@@ -168,7 +192,7 @@ io.on('connection', (socket) => {
                 startGameLoop(roomId);
             }
             socket.emit('joinSuccess', roomId);
-            socket.emit('newQuestion', { text: room.question.text });
+            socket.emit('newQuestion', room.question);
             io.to(roomId).emit('updateLeaderboard', room.players);
             io.emit('updateRooms', getSanitizedRooms());
         } else {
@@ -186,13 +210,31 @@ io.on('connection', (socket) => {
         
         room.submittedAnswers.push(socket.id);
 
-        let distance = 0;
+        let score = 0;
         if (room.gameType === 'number-line') {
-            distance = Math.abs(room.question.answer - guess.x);
-        } else {
-            distance = calculateDistance(room.question.answer, guess);
+            const distance = Math.abs(room.question.answer - guess.x);
+            score = calculateScore(distance);
+        } else if (room.gameType === 'cartesian-plane') {
+            const distance = calculateDistance(room.question.answer, guess);
+            score = calculateScore(distance);
+        } else if (room.gameType === 'trivia') {
+            const { x, y } = guess;
+            console.log('Received trivia guess:', guess);
+            console.log('x:', x, 'y:', y, 'correctIndex:', room.question.correctIndex);
+            const { correctIndex } = room.question;
+            const scores = [-1, -1, -1, -1];
+            scores[correctIndex] = 1;
+            
+            const s00 = scores[0]; // Top-left
+            const s10 = scores[1]; // Top-right
+            const s01 = scores[2]; // Bottom-left
+            const s11 = scores[3]; // Bottom-right
+
+            score = s00 * (1 - x) * (1 - y) + s10 * x * (1 - y) + s01 * (1 - x) * y + s11 * x * y;
+            score = Math.round(score * 100) / 100; // Round to 2 decimal places
+            console.log('Calculated trivia score:', score);
         }
-        const score = calculateScore(distance);
+        
         player.score += score;
 
         // Update player metrics
@@ -221,7 +263,6 @@ io.on('connection', (socket) => {
             playerId: socket.id,
             playerName: player.name,
             guess: guess,
-            distance: distance,
             score: score,
             responseTime: responseTime,
             timestamp: new Date().toISOString()
@@ -232,7 +273,7 @@ io.on('connection', (socket) => {
             saveMetrics();
         }
 
-        socket.emit('guessResult', { score, correctAnswer: room.question.answer });
+        socket.emit('guessResult', { score, correctAnswer: room.question.answer, correctIndex: room.question.correctIndex });
         io.to(roomId).emit('updateLeaderboard', room.players);
     });
 

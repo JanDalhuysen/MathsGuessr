@@ -10,12 +10,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const socket = io();
     const gameContainer = document.getElementById('game-container');
-    const gameType = document.body.querySelector('h1').textContent.includes('number-line') ? 'number-line' : 'cartesian-plane';
+    const gameType = document.body.dataset.gameType;
     const questionDisplay = document.getElementById('question-display');
     const leaderboard = document.getElementById('leaderboard');
-    const canvas = document.getElementById(gameType === 'number-line' ? 'number-line-canvas' : 'cartesian-plane-canvas');
-    const ctx = canvas.getContext('2d');
     let hasGuessed = false;
+
+    // Metrics variables
+    let questionsAnswered = 0;
+    let totalTime = 0;
+    let totalErrorDistance = 0;
+    let startTime = 0;
+    let userGuess = null;
+
+    // Canvas setup for non-trivia games
+    let canvas, ctx;
+    if (gameType === 'number-line' || gameType === 'cartesian-plane') {
+        canvas = document.getElementById(gameType === 'number-line' ? 'number-line-canvas' : 'cartesian-plane-canvas');
+        ctx = canvas.getContext('2d');
+    }
+
+    // Trivia setup
+    let triviaQuestion, triviaAnswers;
+    if (gameType === 'trivia') {
+        triviaQuestion = document.getElementById('trivia-question');
+        triviaAnswers = document.getElementById('trivia-answers');
+    }
 
     const drawFunctions = {
         'number-line': drawNumberLine,
@@ -33,10 +52,21 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.emit('joinRoom', { roomId, playerName });
     });
 
-    socket.on('newQuestion', ({ text }) => {
-        questionDisplay.textContent = text;
+    socket.on('newQuestion', (question) => {
         hasGuessed = false;
-        redrawCanvas();
+        startTime = performance.now();
+        userGuess = null;
+        if (gameType === 'trivia') {
+            triviaQuestion.textContent = question.text;
+            for (let i = 0; i < 4; i++) {
+                const answerBox = document.getElementById(`answer-${i}`);
+                answerBox.textContent = question.answers[i];
+                answerBox.classList.remove('correct', 'incorrect');
+            }
+        } else {
+            questionDisplay.textContent = question.text;
+            redrawCanvas();
+        }
     });
 
     socket.on('updateLeaderboard', (players) => {
@@ -49,32 +79,69 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    socket.on('guessResult', ({ score, correctAnswer }) => {
-        redrawCanvas();
-        const { x, y } = drawPoint(correctAnswer, '#98c379', 'Answer');
-        showScorePopup(score, x, y);
+    socket.on('guessResult', ({ score, correctAnswer, correctIndex }) => {
+        const elapsedTime = performance.now() - startTime;
+        questionsAnswered++;
+        totalTime += elapsedTime;
+
+        if (gameType === 'number-line') {
+            const distance = Math.abs(correctAnswer - userGuess.x);
+            totalErrorDistance += distance;
+        } else if (gameType === 'cartesian-plane') {
+            const distance = Math.sqrt(Math.pow(correctAnswer.x - userGuess.x, 2) + Math.pow(correctAnswer.y - userGuess.y, 2));
+            totalErrorDistance += distance;
+        }
+
+        updateMetricsPanel();
+
+        if (gameType === 'trivia') {
+            const answerBox = document.getElementById(`answer-${correctIndex}`);
+            answerBox.classList.add('correct');
+        } else {
+            redrawCanvas();
+            const { x, y } = drawPoint(correctAnswer, '#98c379', 'Answer');
+            showScorePopup(score, x, y);
+        }
     });
 
     // --- UI Event Handlers ---
-    canvas.addEventListener('click', (e) => {
-        if (hasGuessed) return;
+    if (gameType === 'number-line' || gameType === 'cartesian-plane') {
+        canvas.addEventListener('click', (e) => {
+            if (hasGuessed) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-        let guess;
-        if (gameType === 'number-line') {
-            const range = 20, padding = 40;
-            const unitWidth = (canvas.width - padding * 2) / range;
-            guess = { x: (x - padding) / unitWidth - 10 };
-        } else {
-            const originX = canvas.width / 2, originY = canvas.height / 2, scale = 40;
-            guess = { x: (x - originX) / scale, y: -(y - originY) / scale };
-        }
-        socket.emit('submitGuess', { roomId, guess });
-        hasGuessed = true;
-    });
+            let guess;
+            if (gameType === 'number-line') {
+                const range = 20, padding = 40;
+                const unitWidth = (canvas.width - padding * 2) / range;
+                guess = { x: (x - padding) / unitWidth - 10 };
+            } else {
+                const originX = canvas.width / 2, originY = canvas.height / 2, scale = 40;
+                guess = { x: (x - originX) / scale, y: -(y - originY) / scale };
+            }
+            userGuess = guess;
+            socket.emit('submitGuess', { roomId, guess });
+            hasGuessed = true;
+        });
+    } else if (gameType === 'trivia') {
+        triviaAnswers.addEventListener('click', (e) => {
+            if (hasGuessed) return;
+
+            const rect = triviaAnswers.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+
+            const guess = { x, y };
+            userGuess = guess;
+            socket.emit('submitGuess', { roomId, guess });
+            hasGuessed = true;
+
+            showScorePopup(null, e.clientX, e.clientY);
+        });
+    }
 
     window.addEventListener('resize', redrawCanvas);
 
@@ -82,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showScorePopup(score, x, y) {
         const popup = document.createElement('div');
         popup.className = 'score-popup';
-        popup.textContent = `+${score}`;
+        popup.textContent = score ? `+${score}` : '';
         popup.style.left = `${x}px`;
         popup.style.top = `${y}px`;
         gameContainer.appendChild(popup);
@@ -91,6 +158,30 @@ document.addEventListener('DOMContentLoaded', () => {
             popup.remove();
         }, 1500);
     }
+
+    function updateMetricsPanel() {
+        const questionsAnsweredEl = document.getElementById('questions-answered');
+        const avgTimeEl = document.getElementById('avg-time');
+        const avgDistanceEl = document.getElementById('avg-distance');
+
+        questionsAnsweredEl.textContent = questionsAnswered;
+
+        if (questionsAnswered > 0) {
+            const avgTime = (totalTime / questionsAnswered / 1000).toFixed(2);
+            avgTimeEl.textContent = `${avgTime}s`;
+
+            if (gameType !== 'trivia') {
+                const avgDistance = (totalErrorDistance / questionsAnswered).toFixed(2);
+                avgDistanceEl.textContent = avgDistance;
+            } else {
+                avgDistanceEl.textContent = 'N/A';
+            }
+        } else {
+            avgTimeEl.textContent = '0s';
+            avgDistanceEl.textContent = gameType === 'trivia' ? 'N/A' : '0';
+        }
+    }
+
 
     function drawPoint(point, color, label) {
         let canvasX, canvasY;
@@ -113,7 +204,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return { x: canvasX, y: canvasY }; // Return canvas coordinates for popup
     }
 
-    redrawCanvas();
+    if (gameType !== 'trivia') {
+        redrawCanvas();
+    }
 });
 
 function drawCartesianPlane(canvas, ctx) {

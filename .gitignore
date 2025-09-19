@@ -1,4 +1,5 @@
 .aider*
 node_modules
 game_metrics.json
+package-lock.json
 

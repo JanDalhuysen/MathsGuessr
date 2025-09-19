@@ -4,7 +4,7 @@
     <title>MathsGuessr - <%= type %></title>
     <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body data-game-type="<%= type %>">
     <div class="page-container">
         <div id="leaderboard-container">
             <h2>Leaderboard</h2>
@@ -12,17 +12,35 @@
         </div>
         <div class="game-wrapper">
             <h1>MathsGuessr - <%= type %></h1>
-            <div id="game-container">
-                <div id="question-display"></div>
-                <% if (type === 'number-line') { %>
-                    <div class="number-line-container">
-                        <canvas id="number-line-canvas"></canvas>
-                    </div>
-                <% } else if (type === 'cartesian-plane') { %>
-                    <div class="cartesian-plane-container">
-                        <canvas id="cartesian-plane-canvas"></canvas>
-                    </div>
-                <% } %>
+            <div class="game-area">
+                <div id="game-container">
+                    <div id="question-display"></div>
+                    <% if (type === 'number-line') { %>
+                        <div class="number-line-container">
+                            <canvas id="number-line-canvas"></canvas>
+                        </div>
+                    <% } else if (type === 'cartesian-plane') { %>
+                        <div class="cartesian-plane-container">
+                            <canvas id="cartesian-plane-canvas"></canvas>
+                        </div>
+                    <% } else if (type === 'trivia') { %>
+                        <div id="trivia-container">
+                            <div id="trivia-question"></div>
+                            <div id="trivia-answers">
+                                <div class="answer-box" id="answer-0"></div>
+                                <div class="answer-box" id="answer-1"></div>
+                                <div class="answer-box" id="answer-2"></div>
+                                <div class="answer-box" id="answer-3"></div>
+                            </div>
+                        </div>
+                    <% } %>
+                </div>
+                <div id="metrics-panel">
+                    <h2>Game Metrics</h2>
+                    <p>Questions Answered: <span id="questions-answered">0</span></p>
+                    <p>Average Time: <span id="avg-time">0s</span></p>
+                    <p>Average Error Distance: <span id="avg-distance">N/A</span></p>
+                </div>
             </div>
         </div>
     </div>
