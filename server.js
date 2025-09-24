@@ -244,7 +244,8 @@ io.on('connection', (socket) => {
                 totalScore: 0,
                 questionsAnswered: 0,
                 totalResponseTime: 0,
-                bestScore: 0
+                bestScore: 0,
+                questionHistory: [] // Store individual question history
             };
         }
         
@@ -253,6 +254,14 @@ io.on('connection', (socket) => {
         playerMetrics.questionsAnswered += 1;
         playerMetrics.totalResponseTime += responseTime;
         playerMetrics.bestScore = Math.max(playerMetrics.bestScore, score);
+        
+        // Add question history with time taken
+        playerMetrics.questionHistory.push({
+            question: room.question.text,
+            responseTime: responseTime,
+            score: score,
+            timestamp: new Date().toISOString()
+        });
         
         // Find the current question in metrics
         const gameMetrics = metrics.games[roomId];
